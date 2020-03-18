@@ -1,6 +1,4 @@
 use argh::FromArgs;
-use rand::distributions::Alphanumeric;
-use rand::{thread_rng, Rng};
 use tokio::io::AsyncWriteExt;
 use tokio::net::TcpListener;
 use tokio::net::TcpStream;
@@ -60,7 +58,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     loop {
         select! {
             Some(_) = stream.next() => {
-                let payload = generate_payload(config.payload_size);
+                let payload = common::generate_line(config.payload_size);
                 frames.get_mut().write_all(payload.as_bytes()).await.unwrap();
             }
             Some(_data) = frames.next() => {
@@ -79,14 +77,4 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     println!("throughput = {} MB/s", throughput_secs_mb);
     Ok(())
-}
-
-fn generate_payload(payload_size: usize) -> String {
-    let mut rand_string: String = thread_rng()
-        .sample_iter(&Alphanumeric)
-        .take(payload_size)
-        .collect();
-
-    rand_string.push('\n');
-    rand_string
 }
