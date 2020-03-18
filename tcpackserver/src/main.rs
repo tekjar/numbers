@@ -2,13 +2,13 @@ use argh::FromArgs;
 use tokio::io::AsyncWriteExt;
 use tokio::net::TcpListener;
 use tokio::net::TcpStream;
+use tokio::pin;
 use tokio::select;
+use tokio::stream;
 use tokio::stream::StreamExt;
 use tokio::task;
 use tokio_util::codec::Framed;
 use tokio_util::codec::LinesCodec;
-use tokio::pin;
-use tokio::stream;
 
 use std::error::Error;
 use std::time::Instant;
@@ -71,7 +71,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     }
 
     let elapsed = start.elapsed();
-    let throughput = 1024 * config.count as u128 / elapsed.as_millis();
+    let throughput = (config.payload_size * config.count as usize) as u128 / elapsed.as_millis();
     let throughput_secs = throughput * 1000;
     let throughput_secs_mb = throughput_secs / 1024 / 1024;
 

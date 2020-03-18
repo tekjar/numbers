@@ -1,5 +1,5 @@
 [package]
-name = "ackserver"
+name = "tcpackserver"
 version = "0.1.0"
 authors = ["tekjar <raviteja@bytebeam.io>"]
 edition = "2018"
