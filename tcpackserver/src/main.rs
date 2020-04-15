@@ -9,9 +9,11 @@ use tokio::stream::StreamExt;
 use tokio::task;
 use tokio_util::codec::Framed;
 use tokio_util::codec::LinesCodec;
+use futures_util::SinkExt;
 
 use std::error::Error;
-use std::time::Instant;
+use std::time::{Instant, Duration};
+use std::io;
 
 #[derive(FromArgs)]
 /// Reach new heights.
@@ -25,32 +27,26 @@ struct Config {
     count: u16,
 }
 
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn Error>> {
-    let config: Config = argh::from_env();
-    // Next up we create a TCP listener which will listen for incoming
-    // connections. This TCP listener is bound to the address we determined
-    // above and must be associated with an event loop.
+async fn server() -> Result<(), io::Error> {
     let mut listener = TcpListener::bind("127.0.0.1:8080").await?;
 
-    task::spawn(async move {
-        loop {
-            // Asynchronously wait for an inbound socket.
-            let (socket, _) = listener.accept().await.unwrap();
-            task::spawn(async move {
-                let mut frames = Framed::new(socket, LinesCodec::new());
-                while let Some(_line) = frames.next().await {
-                    frames.get_mut().write_all(b"ack\n").await.unwrap();
-                }
-            });
-        }
-    });
+    loop {
+        let (socket, _) = listener.accept().await?;
+        task::spawn(async move {
+            let mut frames = Framed::new(socket, LinesCodec::new());
+            while let Some(line) = frames.next().await {
+                dbg!(line);
+                frames.send("ack\n".to_owned()).await.unwrap();
+            }
+        });
+    }
+}
 
+async fn client(payload_size: usize, max_count: u16) -> Result<(), io::Error> {
     let socket = TcpStream::connect("127.0.0.1:8080").await.unwrap();
     let mut frames = Framed::new(socket, LinesCodec::new());
 
-    let start = Instant::now();
-    let stream: Vec<u16> = (0..config.count).collect();
+    let stream: Vec<u16> = (0..max_count).collect();
     let stream = stream::iter(stream);
 
     pin!(stream);
@@ -58,17 +54,34 @@ async fn main() -> Result<(), Box<dyn Error>> {
     loop {
         select! {
             Some(_) = stream.next() => {
-                let payload = common::generate_line(config.payload_size);
-                frames.get_mut().write_all(payload.as_bytes()).await.unwrap();
+                let payload = common::generate_line(payload_size);
+                frames.send(payload).await.unwrap();
             }
             Some(_data) = frames.next() => {
-                count += 1;
-                if count >= config.count {
+                 count += 1;
+                 if count >= max_count {
                     break;
-                }
+                 }
             }
         }
     }
+
+    Ok(())
+}
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn Error>> {
+    let config: Config = argh::from_env();
+    let count = config.count;
+    let payload_size = config.payload_size;
+
+    task::spawn(async move {
+        server().await.unwrap();
+    });
+
+    tokio::time::delay_for(Duration::from_secs(1)).await;
+    let start = Instant::now();
+    client(payload_size, count).await.unwrap();
 
     let elapsed = start.elapsed();
     let throughput = (config.payload_size * config.count as usize) as u128 / elapsed.as_millis();
