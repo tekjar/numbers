@@ -20,7 +20,7 @@ struct Config {
 
     /// number of messages
     #[argh(option, short = 'n', default = "10000")]
-    count: u16,
+    count: usize,
 }
 
 async fn server() -> Result<(), io::Error> {
@@ -38,10 +38,10 @@ async fn server() -> Result<(), io::Error> {
     }
 }
 
-async fn client(payload_size: usize, max_count: u16) -> Result<(), io::Error> {
+async fn client(payload_size: usize, max_count: usize) -> Result<(), io::Error> {
     let socket = Async::<TcpStream>::connect("127.0.0.1:8080").await?;
     let frames = Framed::new(socket, LinesCodec);
-    let stream: Vec<u16> = (0..max_count).collect();
+    let stream: Vec<usize> = (0..max_count).collect();
     let stream = stream::iter(stream);
 
     let mut count = 0;
