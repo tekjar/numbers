@@ -1,5 +1,4 @@
 use argh::FromArgs;
-use tokio::io::AsyncWriteExt;
 use tokio::net::TcpListener;
 use tokio::net::TcpStream;
 use tokio::pin;
@@ -34,9 +33,8 @@ async fn server() -> Result<(), io::Error> {
         let (socket, _) = listener.accept().await?;
         task::spawn(async move {
             let mut frames = Framed::new(socket, LinesCodec::new());
-            while let Some(line) = frames.next().await {
-                dbg!(line);
-                frames.send("ack\n".to_owned()).await.unwrap();
+            while let Some(_line) = frames.next().await {
+                frames.send("ack".to_owned()).await.unwrap();
             }
         });
     }
@@ -54,7 +52,7 @@ async fn client(payload_size: usize, max_count: u16) -> Result<(), io::Error> {
     loop {
         select! {
             Some(_) = stream.next() => {
-                let payload = common::generate_line(payload_size);
+                let payload = common::generate_string(payload_size);
                 frames.send(payload).await.unwrap();
             }
             Some(_data) = frames.next() => {
@@ -79,7 +77,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         server().await.unwrap();
     });
 
-    tokio::time::delay_for(Duration::from_secs(1)).await;
+    tokio::time::delay_for(Duration::from_millis(1)).await;
     let start = Instant::now();
     client(payload_size, count).await.unwrap();
 
