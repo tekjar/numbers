@@ -68,7 +68,7 @@ async fn client(payload_size: usize, max_count: usize) -> Result<(), io::Error> 
     Ok(())
 }
 
-#[tokio::main]
+#[tokio::main(core_threads = 2)]
 async fn main() -> Result<(), Box<dyn Error>> {
     let config: Config = argh::from_env();
     let count = config.count;

@@ -8,8 +8,9 @@ use futures_codec::{Framed, LinesCodec};
 use futures_util::select;
 use futures_util::stream;
 use futures_util::{SinkExt, StreamExt};
+use futures_util::future;
 use smol::{self, Async, Task};
-use std::io;
+use std::{io, thread};
 
 #[derive(FromArgs)]
 /// Reach new heights.
@@ -75,7 +76,12 @@ fn main() -> Result<(), Box<dyn Error>> {
     let count = config.count;
     let payload_size = config.payload_size;
 
-    smol::run(async {
+    // Create a thread pool.
+    for _ in 0..2 {
+        thread::spawn(|| smol::run(future::pending::<()>()));
+    }
+
+    smol::block_on(async {
         let _server = Task::spawn(server());
 
         let start = Instant::now();
