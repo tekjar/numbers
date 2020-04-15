@@ -49,11 +49,12 @@ async fn client(payload_size: usize, max_count: u16) -> Result<(), io::Error> {
 
     pin!(stream);
     let mut count = 0;
+    let payload = common::generate_string(payload_size);
+
     loop {
         select! {
             Some(_) = stream.next() => {
-                let payload = common::generate_string(payload_size);
-                frames.send(payload).await.unwrap();
+                frames.send(payload.clone()).await.unwrap();
             }
             Some(_data) = frames.next() => {
                  count += 1;
@@ -85,7 +86,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let throughput = (config.payload_size * config.count as usize) as u128 / elapsed.as_millis();
     let throughput_secs = throughput * 1000;
     let throughput_secs_mb = throughput_secs / 1024 / 1024;
-
     println!("throughput = {} MB/s", throughput_secs_mb);
     Ok(())
 }

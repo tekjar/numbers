@@ -1,5 +1,5 @@
 [package]
-name = "tokioackserver"
+name = "smolackserver"
 version = "0.1.0"
 authors = ["tekjar <raviteja@bytebeam.io>"]
 edition = "2018"
@@ -8,8 +8,8 @@ edition = "2018"
 
 [dependencies]
 common = { path = "../../common", version = "0.1" }
-tokio = { version = "0.2", features = ["full"] }
-tokio-util = { version = "0.3", features = ["codec"] }
 futures-util = { version = "0.3", features = ["sink"] }
+futures_codec = "0.4"
+smol = { path = "../../../smol" }
 argh = "0.1"
 rand = "0.7"
