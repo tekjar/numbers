@@ -1,13 +1,12 @@
 use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
 
-pub fn generate_line(payload_size: usize) -> String {
-    let mut rand_string: String = thread_rng()
+pub fn generate_string(payload_size: usize) -> String {
+    let rand_string: String = thread_rng()
         .sample_iter(&Alphanumeric)
         .take(payload_size)
         .collect();
 
-    rand_string.push('\n');
     rand_string
 }
 
