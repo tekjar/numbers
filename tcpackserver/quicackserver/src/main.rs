@@ -61,16 +61,19 @@ async fn server(server_config: ServerConfig) -> Result<(), io::Error> {
         let conn = incoming.next().await.unwrap();
         let new_connection = conn.await.unwrap();
         println!("[server] connection accepted: addr={}", new_connection.connection.remote_address());
-        let quinn::NewConnection { connection, .. } = new_connection;
+        let quinn::NewConnection { mut bi_streams, .. } = new_connection;
         task::spawn(async move {
-            let (tx, rx) = connection.open_bi().await.unwrap();
+            let (tx, rx) = bi_streams.next().await.unwrap().unwrap();
             let mut tx = FramedWrite::new(tx, LinesCodec);
             let mut rx = FramedRead::new(rx, LinesCodec);
 
             while let Some(line) = rx.next().await {
-                println!("-> {:?}", line);
+                // We get timeout error if the client is idle
+                let _line = line?;
                 tx.send("ack\n".to_owned()).await.unwrap();
             }
+
+            Ok::<_, io::Error>(())
         });
     }
 }
@@ -96,17 +99,18 @@ async fn client(payload_size: usize, max_count: usize, server_certs: &[&[u8]]) -
 
     pin!(stream);
     let mut count = 0;
-    let payload = common::generate_string(payload_size) + "\n";
 
+    let payload = common::generate_string(payload_size) + "\n";
     loop {
         select! {
-            Some(_) = stream.next() => {
+            Some(_i) = stream.next() => {
                 tx.send(payload.clone()).await.unwrap();
             }
-            Some(_data) = rx.next() => {
+            Some(data) = rx.next() => {
+                let _data = data?;
                  count += 1;
                  if count >= max_count {
-                    break;
+                    break
                  }
             }
         }
