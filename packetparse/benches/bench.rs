@@ -1,9 +1,12 @@
+#![feature(test)]
+extern crate test;
+
 use bytes::{Bytes, BytesMut};
 use packetparse::{disassemble, Packet};
 
-use criterion::{black_box, criterion_group, criterion_main, Criterion, Throughput};
+use test::Bencher;
 
-fn packets(count: usize, size: usize) -> Vec<Packet> {
+fn _packets(count: usize, size: usize) -> Vec<Packet> {
     let mut packets = Vec::new();
     let topic = "hello/mqtt/parsing/speed/test";
     for i in 0..count {
@@ -38,15 +41,10 @@ fn packet(size: usize) -> Packet {
     packet
 }
 
-fn criterion_benchmark(c: &mut Criterion) {
-    let mut group = c.benchmark_group("throughput-of-writes");
-    group.throughput(Throughput::Bytes(1024 as u64));
-    group.bench_function("1K write", |b| {
-        let mut packetstream = BytesMut::new();
-        b.iter(|| disassemble(packet(1024), &mut packetstream))
-    });
-    group.finish();
+#[bench]
+fn writestream(b: &mut Bencher) {
+    let mut packetstream = BytesMut::new();
+    b.iter(|| disassemble(packet(1024), &mut packetstream));
+    b.bytes = 1024;
 }
 
-criterion_group!(benches, criterion_benchmark);
-criterion_main!(benches);
