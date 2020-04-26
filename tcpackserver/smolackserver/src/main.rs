@@ -5,12 +5,12 @@ use std::net::{TcpListener, TcpStream};
 use std::time::Instant;
 
 use futures_codec::{Framed, LinesCodec};
-use futures_util::select;
+use futures_util::future;
 use futures_util::stream;
 use futures_util::{SinkExt, StreamExt};
-use futures_util::future;
 use smol::{self, Async, Task};
 use std::{io, thread};
+use tokio::select;
 
 #[derive(FromArgs)]
 /// Reach new heights.
@@ -51,15 +51,10 @@ async fn client(payload_size: usize, max_count: usize) -> Result<(), io::Error> 
     let payload = common::generate_string(payload_size) + "\n";
     loop {
         select! {
-            _ = stream.next() => {
+            Some(_) = stream.next() => {
                 frames.send(payload.clone()).await?;
             }
-            o = frames.next() => {
-                let o = match o {
-                    Some(v) => v?,
-                    None => break
-                };
-
+            Some(o) = frames.next() => {
                 count += 1;
                 if count >= max_count {
                     break;

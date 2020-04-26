@@ -10,6 +10,7 @@ edition = "2018"
 common = { path = "../../common", version = "0.1" }
 futures-util = { version = "0.3", features = ["sink"] }
 futures_codec = "0.4"
+tokio = { version = "0.2", features = ["macros"] }
 smol = { path = "../../../smol" }
 argh = "0.1"
 rand = "0.7"
