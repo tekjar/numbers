@@ -1,5 +1,5 @@
 use bytes::{BytesMut, Bytes};
-use packetparse::{disassemble, Packet};
+use packetparse::{disassemble, Packet, next_packet};
 use std::time::Instant;
 use std::fs::File;
 use prost::Message;
@@ -14,8 +14,14 @@ fn main() {
     packets.into_iter().for_each(|packet| {
         disassemble(packet, &mut packetstream)
     });
-
     report("publishwritethrouthput.pb", packetstream.len() as u64, start, guard);
+
+    let guard = pprof::ProfilerGuard::new(100).unwrap();
+    let start = Instant::now();
+    for _ in 0..5*1024*1024 {
+        let _packet = next_packet(&mut packetstream);
+    }
+    report("publishreadthrouthput.pb", 5 * 1024 * 1024 * 1024, start, guard);
 }
 
 fn packets(count: usize, size: usize) -> Vec<Packet> {
