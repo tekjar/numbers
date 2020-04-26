@@ -12,11 +12,9 @@ pub struct Packet {
     pub qos: u8,
     pub pkid: u16,
     pub payload: Bytes,
-    pub bytes: Bytes,
 }
 
-pub fn assemble(byte1: u8, variable_header_index: usize, bytes: Bytes) -> Packet {
-    let mut payload = bytes.clone();
+pub fn assemble(byte1: u8, variable_header_index: usize, mut payload: Bytes) -> Packet {
     let qos = (byte1 & 0b0110) >> 1;
     let dup = (byte1 & 0b1000) != 0;
     let retain = (byte1 & 0b0001) != 0;
@@ -42,7 +40,6 @@ pub fn assemble(byte1: u8, variable_header_index: usize, bytes: Bytes) -> Packet
         payload,
         dup,
         retain,
-        bytes,
     }
 }
 
@@ -65,7 +62,7 @@ pub fn disassemble(packet: Packet, payload: &mut BytesMut) {
         payload.put_u16(pkid);
     }
 
-    payload.extend_from_slice(&packet.payload);
+    payload.put(packet.payload);
 }
 
 

@@ -16,7 +16,6 @@ pprof = { version = "0.3", features = ["flamegraph", "protobuf"] }
 tempfile = "3"
 pretty_assertions = "0.6"
 rand = "0.7"
-mimalloc = { version = "*", default-features = false }
 
 [profile.release]
 debug = true

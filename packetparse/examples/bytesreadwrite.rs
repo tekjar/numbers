@@ -6,7 +6,7 @@ use prost::Message;
 use std::io::Write;
 
 fn main() {
-    let packets = packets(5 * 1024 * 1024, 1024);
+    let packets = packets(2 * 1024 * 1024, 1024);
     let mut packetstream = BytesMut::new();
 
     let guard = pprof::ProfilerGuard::new(100).unwrap();
@@ -18,10 +18,10 @@ fn main() {
 
     let guard = pprof::ProfilerGuard::new(100).unwrap();
     let start = Instant::now();
-    for _ in 0..5*1024*1024 {
+    for _ in 0..2*1024*1024 {
         let _packet = next_packet(&mut packetstream);
     }
-    report("publishreadthrouthput.pb", 5 * 1024 * 1024 * 1024, start, guard);
+    report("publishreadthrouthput.pb", 2 * 1024 * 1024 * 1024, start, guard);
 }
 
 fn packets(count: usize, size: usize) -> Vec<Packet> {
@@ -35,7 +35,6 @@ fn packets(count: usize, size: usize) -> Vec<Packet> {
             qos: 1,
             pkid: (i % 65000 + 1) as u16,
             payload: Bytes::from(vec![i as u8; size]),
-            bytes: Bytes::new(),
         };
 
         packets.push(packet);

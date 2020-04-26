@@ -17,7 +17,6 @@ fn _packets(count: usize, size: usize) -> Vec<Packet> {
             qos: 1,
             pkid: (i % 65000 + 1) as u16,
             payload: Bytes::from(vec![i as u8; size]),
-            bytes: Bytes::new(),
         };
 
         packets.push(packet);
@@ -35,7 +34,6 @@ fn packet(size: usize) -> Packet {
         qos: 1,
         pkid: 1,
         payload: Bytes::from(vec![1 as u8; size]),
-        bytes: Bytes::new(),
     };
 
     packet
