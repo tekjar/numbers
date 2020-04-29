@@ -11,7 +11,8 @@ use futures_util::{SinkExt, StreamExt};
 use smol::{self, Async, Task};
 use std::{io, thread};
 use tokio::select;
-use mergedbytes::{Publish, MqttCodec, Packet, PubAck};
+use mergedbytes::{Publish, Packet, PubAck};
+use mergedbytes::codec::futures::MqttCodec;
 
 #[derive(FromArgs)]
 /// Reach new heights.
@@ -32,12 +33,15 @@ async fn server() -> Result<(), io::Error> {
         Task::spawn(async move {
             let mut frames = Framed::new(socket, MqttCodec);
             while let Some(packet) = frames.next().await {
-                let publish = match packet.unwrap() {
-                    Packet::Publish(publish) => publish,
+                match packet.unwrap() {
+                    Packet::Publish(publish) => {
+                        let ack = Packet::PubAck(PubAck::new(publish.pkid));
+                        frames.send(ack).await.unwrap();
+                    },
                     Packet::PubAck(_puback) => continue
                 };
-                let ack = Packet::PubAck(PubAck::new(publish.pkid));
-                frames.send(ack).await.unwrap();
+                // let publish = Packet::Publish(publish);
+                // frames.send(publish).await.unwrap();
             }
         }).await;
     }
@@ -53,10 +57,15 @@ async fn client(payload_size: usize, max_count: usize) -> Result<(), io::Error> 
     loop {
         select! {
             Some(packet) = stream.next() => frames.send(packet).await.unwrap(),
-            Some(_o) = frames.next() => {
-                count += 1;
-                if count >= max_count {
-                    break;
+            Some(o) = frames.next() => match o.unwrap() {
+                Packet::Publish(_publish) => {
+
+                }
+                Packet::PubAck(_ack) => {
+                    count += 1;
+                    if count >= max_count {
+                        break;
+                    }
                 }
             }
         }

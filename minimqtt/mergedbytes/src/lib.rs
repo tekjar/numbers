@@ -4,8 +4,7 @@ use bytes::{Bytes, Buf, BytesMut, BufMut};
 use thiserror::Error;
 use std::io;
 
-mod codec;
-pub use codec::*;
+pub mod codec;
 
 #[derive(Error, Debug)]
 pub enum Error {
