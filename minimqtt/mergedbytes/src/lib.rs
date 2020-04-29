@@ -1,3 +1,5 @@
+#![cfg_attr(nightly, feature(test))]
+
 use bytes::{Bytes, Buf, BytesMut, BufMut};
 use thiserror::Error;
 use std::io;
@@ -13,7 +15,7 @@ pub enum Error {
     Io(#[from] io::Error)
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct Publish {
     pub topic: String,
     pub dup: bool,
@@ -35,12 +37,12 @@ impl Publish {
         }
     }
 
-    pub fn assemble(byte1: u8, variable_header_index: usize, mut payload: Bytes) -> Publish {
-        let qos = (byte1 & 0b0110) >> 1;
-        let dup = (byte1 & 0b1000) != 0;
-        let retain = (byte1 & 0b0001) != 0;
+    fn assemble(fixed_header: FixedHeader, mut payload: Bytes) -> Publish {
+        let qos = (fixed_header.byte1 & 0b0110) >> 1;
+        let dup = (fixed_header.byte1 & 0b1000) != 0;
+        let retain = (fixed_header.byte1 & 0b0001) != 0;
 
-        payload.advance(variable_header_index);
+        payload.advance(fixed_header.header_len);
         let topic = read_mqtt_string(&mut payload);
 
         // Packet identifier exists where QoS > 0
@@ -77,12 +79,12 @@ impl PubAck {
         }
     }
 
-    pub fn assemble(remaining_len: usize, variable_header_index: usize, mut bytes: Bytes) -> PubAck {
-        if remaining_len != 2 {
+    fn assemble(fixed_header: FixedHeader, mut bytes: Bytes) -> PubAck {
+        if fixed_header.remaining_len != 2 {
             panic!("Payload size incorrect!!");
         }
 
-        bytes.advance(variable_header_index);
+        bytes.advance(fixed_header.header_len);
         let pkid = bytes.get_u16();
         let puback = PubAck {
             pkid,
@@ -92,6 +94,7 @@ impl PubAck {
     }
 }
 
+#[derive(Debug, Clone)]
 pub enum Packet {
     Publish(Publish),
     PubAck(PubAck)
@@ -136,7 +139,12 @@ pub fn mqtt_read(stream: &mut BytesMut) -> Result<Packet, Error> {
     let (byte1, remaining_len) = parse_fixed_header(stream)?;
     let header_len = header_len(remaining_len);
     let len = header_len + remaining_len;
-    let variable_header_index = header_len;
+
+    let fixed_header = FixedHeader {
+        byte1,
+        header_len,
+        remaining_len
+    };
     let control_type = byte1 >> 4;
 
     // If the current call fails due to insufficient bytes in the stream, after calculating
@@ -148,12 +156,17 @@ pub fn mqtt_read(stream: &mut BytesMut) -> Result<Packet, Error> {
 
     let s = stream.split_to(len);
     Ok(match control_type {
-        3 => Packet::Publish(Publish::assemble(byte1, variable_header_index, s.freeze())),
-        4 => Packet::PubAck(PubAck::assemble(remaining_len, variable_header_index, s.freeze())),
+        3 => Packet::Publish(Publish::assemble(fixed_header, s.freeze())),
+        4 => Packet::PubAck(PubAck::assemble(fixed_header, s.freeze())),
         typ => panic!("Invalid packet type {}", typ)
     })
 }
 
+struct FixedHeader {
+    byte1: u8,
+    header_len: usize,
+    remaining_len: usize
+}
 
 pub fn parse_fixed_header(stream: &[u8]) -> Result<(u8, usize), Error> {
     if stream.is_empty() {
@@ -230,5 +243,57 @@ pub(crate) fn write_remaining_length(stream: &mut BytesMut, len: usize) {
 
         stream.put_u8(byte);
         done = x == 0;
+    }
+}
+
+
+#[cfg(test)]
+mod test {
+    extern crate test;
+    use test::Bencher;
+    use bytes::{Bytes, BytesMut};
+    use crate::{Publish, mqtt_write, Packet, mqtt_read};
+
+    // #[bench]
+    fn encode_packets(b: &mut Bencher) {
+        let mut payload = BytesMut::new();
+        let publish = Publish {
+            dup: false,
+            qos: 1,
+            retain: false,
+            topic: "a/b".to_owned(),
+            pkid: 10,
+            payload: Bytes::from(vec![1; 1024]),
+        };
+
+        let publishes = vec![Packet::Publish(publish.clone()); 2 * 1024 * 1024];
+        let mut publishes = publishes.into_iter();
+        b.iter(|| {
+            mqtt_write(publishes.next().unwrap(), &mut payload)
+        });
+        b.bytes = 1024;
+    }
+
+    #[bench]
+    fn decode_packets(b: &mut Bencher) {
+        let mut payload = BytesMut::new();
+        let publish = Publish {
+            dup: false,
+            qos: 1,
+            retain: false,
+            topic: "a/b".to_owned(),
+            pkid: 10,
+            payload: Bytes::from(vec![1; 1024]),
+        };
+
+        b.iter(|| {
+            let mut stream = BytesMut::new();
+            (0..1000).for_each(|_v| mqtt_write(Packet::Publish(publish.clone()), &mut stream));
+            (0..1000).for_each(|_v| {
+                mqtt_read(&mut stream).unwrap();
+            });
+        });
+
+        b.bytes = 1024 * 1000;
     }
 }

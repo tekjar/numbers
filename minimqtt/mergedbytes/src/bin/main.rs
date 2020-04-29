@@ -11,7 +11,7 @@ use futures_util::{SinkExt, StreamExt};
 use smol::{self, Async, Task};
 use std::{io, thread};
 use tokio::select;
-use allbytes::{Publish, MqttCodec, Packet, PubAck};
+use mergedbytes::{Publish, MqttCodec, Packet, PubAck};
 
 #[derive(FromArgs)]
 /// Reach new heights.
@@ -19,9 +19,8 @@ struct Config {
     /// size of payload
     #[argh(option, short = 'p', default = "1024")]
     payload_size: usize,
-
     /// number of messages
-    #[argh(option, short = 'n', default = "10000")]
+    #[argh(option, short = 'n', default = "10*1024*1024")]
     count: usize,
 }
 
@@ -78,17 +77,15 @@ fn main() -> Result<(), Box<dyn Error>> {
     let payload_size = config.payload_size;
 
     // Create a thread pool.
-    for _ in 0..2 {
+    for _ in 0..4 {
         thread::spawn(|| smol::run(future::pending::<()>()));
     }
 
     smol::block_on(async {
         let _server = Task::spawn(server());
-
         client(payload_size, count).await.unwrap();
-
-
     });
+
     Ok(())
 }
 
@@ -96,7 +93,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 pub fn packets(size: usize, count: usize) -> Vec<Packet> {
     let mut out = Vec::new();
     for i in 0..count {
-        let pkid = i as u16 + 1;
+        let pkid = (i % 65000) as u16 + 1 ;
         let payload = vec![i as u8; size];
         let packet = Publish::new(pkid, "hello/mqtt/topic/bytes", payload);
         out.push(Packet::Publish(packet))
