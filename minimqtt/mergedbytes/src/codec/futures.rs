@@ -10,9 +10,9 @@ impl Decoder for MqttCodec {
 
     fn decode(&mut self, buf: &mut BytesMut) -> Result<Option<Packet>, crate::Error> {
         // `decode` might be called with `buf.len == 0`. We should return Ok(None)
-        if buf.len() < 2 {
-            return Ok(None);
-        }
+        // if buf.len() < 2 {
+        //     return Ok(None);
+        // }
 
         // Find ways to reserve `buf` better to optimize allocations
         let packet = match mqtt_read(buf) {

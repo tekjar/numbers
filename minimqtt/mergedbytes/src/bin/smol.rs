@@ -28,23 +28,25 @@ struct Config {
 async fn server() -> Result<(), io::Error> {
     let listener = Async::<TcpListener>::bind("127.0.0.1:8080").unwrap();
 
-    loop {
-        let (socket, _) = listener.accept().await?;
-        Task::spawn(async move {
-            let mut frames = Framed::new(socket, MqttCodec);
-            while let Some(packet) = frames.next().await {
-                match packet.unwrap() {
-                    Packet::Publish(publish) => {
-                        let ack = Packet::PubAck(PubAck::new(publish.pkid));
-                        frames.send(ack).await.unwrap();
-                    },
-                    Packet::PubAck(_puback) => continue
-                };
-                // let publish = Packet::Publish(publish);
-                // frames.send(publish).await.unwrap();
+    let (socket, _) = listener.accept().await?;
+    let mut frames = Framed::new(socket, MqttCodec);
+    while let Some(packet) = frames.next().await {
+        match packet.unwrap() {
+            Packet::Publish(publish) => {
+                let ack = Packet::PubAck(PubAck::new(publish.pkid));
+                frames.send(ack).await.unwrap();
+                dbg!(publish.payload.len());
+                let publish = Packet::Publish(publish);
+                frames.send(publish).await.unwrap();
+                frames.flush().await.unwrap();
+                dbg!();
             }
-        }).await;
+            Packet::PubAck(_puback) => continue
+        };
     }
+
+    println!("Done!!!");
+    Ok(())
 }
 
 async fn client(payload_size: usize, max_count: usize) -> Result<(), io::Error> {
@@ -54,17 +56,38 @@ async fn client(payload_size: usize, max_count: usize) -> Result<(), io::Error> 
 
     let mut count = 0;
     let start = Instant::now();
+    let mut done = false;
     loop {
         select! {
-            Some(packet) = stream.next() => frames.send(packet).await.unwrap(),
-            Some(o) = frames.next() => match o.unwrap() {
-                Packet::Publish(_publish) => {
+            packet = stream.next(), if !done => {
+                let packet = match packet {
+                    Some(packet) => packet,
+                    None => {
+                        done = true;
+                        dbg!("done with the stream");
+                        continue
+                    }
+                };
+                frames.send(packet).await.unwrap();
+            }
+            frame = frames.next() =>  {
+                let frame = match frame {
+                    Some(f) => f,
+                    None => {
+                        dbg!("done with network");
+                        break
+                    }
+                };
 
-                }
-                Packet::PubAck(_ack) => {
-                    count += 1;
-                    if count >= max_count {
-                        break;
+                match frame.unwrap() {
+                    Packet::Publish(_publish) => {
+
+                    },
+                    Packet::PubAck(_ack) => {
+                        count += 1;
+                        if count >= max_count {
+                            break;
+                        }
                     }
                 }
             }
@@ -102,7 +125,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 pub fn packets(size: usize, count: usize) -> Vec<Packet> {
     let mut out = Vec::new();
     for i in 0..count {
-        let pkid = (i % 65000) as u16 + 1 ;
+        let pkid = (i % 65000) as u16 + 1;
         let payload = vec![i as u8; size];
         let packet = Publish::new(pkid, "hello/mqtt/topic/bytes", payload);
         out.push(Packet::Publish(packet))

@@ -120,7 +120,7 @@ pub fn mqtt_write(packet: Packet, payload: &mut BytesMut) {
                 payload.put_u16(pkid);
             }
 
-            payload.put(packet.payload);
+            payload.extend_from_slice(&packet.payload[..]);
         }
         Packet::PubAck(packet) => {
             payload.reserve(4);
@@ -145,6 +145,7 @@ pub fn mqtt_read(stream: &mut BytesMut) -> Result<Packet, Error> {
         remaining_len
     };
     let control_type = byte1 >> 4;
+    // println!("id = {}, want = {}, have = {}", control_type, len, stream.len());
 
     // If the current call fails due to insufficient bytes in the stream, after calculating
     // remaining length, we extend the stream
@@ -168,8 +169,11 @@ struct FixedHeader {
 }
 
 pub fn parse_fixed_header(stream: &[u8]) -> Result<(u8, usize), Error> {
+    // let s = stream.clone();
+    // println!("Parsing fixed. Stream size = {}", stream.len());
+    // println!("{:0x?}", s);
     if stream.is_empty() {
-        panic!("Empty stream")
+        return Err(Error::UnexpectedEof)
     }
 
     let mut mult: usize = 1;
@@ -193,6 +197,7 @@ pub fn parse_fixed_header(stream: &[u8]) -> Result<(u8, usize), Error> {
     }
 
     if !done {
+        dbg!("Need more bytes");
         return Err(Error::UnexpectedEof)
     }
 

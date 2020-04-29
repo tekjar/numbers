@@ -20,7 +20,7 @@ struct Config {
     #[argh(option, short = 'p', default = "1024")]
     payload_size: usize,
     /// number of messages
-    #[argh(option, short = 'n', default = "2*1024*1024")]
+    #[argh(option, short = 'n', default = "5*1024*1024")]
     count: usize,
 }
 
@@ -34,6 +34,7 @@ async fn server() -> Result<(), io::Error> {
             while let Some(packet) = frames.next().await {
                 match packet.unwrap() {
                     Packet::Publish(publish) => {
+                        // dbg!(publish.pkid);
                         let ack = Packet::PubAck(PubAck::new(publish.pkid));
                         frames.send(ack).await.unwrap();
                     },
@@ -53,14 +54,21 @@ async fn client(payload_size: usize, max_count: usize) -> Result<(), io::Error> 
 
     let mut count = 0;
     let start = Instant::now();
+    let mut send_count = 0;
     loop {
         select! {
-            Some(packet) = stream.next() => frames.send(packet).await.unwrap(),
+            Some(packet) = stream.next() => {
+                send_count += 1;
+                if let Packet::Publish(publish) = &packet {
+                    // dbg!(send_count);
+                }
+                frames.send(packet).await.unwrap();
+            }
             Some(o) = frames.next() => match o.unwrap() {
-                Packet::Publish(_publish) => {}
+                Packet::Publish(_publish) => (),
                 Packet::PubAck(ack) => {
-                    // dbg!(ack);
                     count += 1;
+                    // dbg!(count);
                     if count >= max_count {
                         break;
                     }
@@ -82,7 +90,7 @@ async fn client(payload_size: usize, max_count: usize) -> Result<(), io::Error> 
     Ok(())
 }
 
-#[tokio::main(core_threads = 4)]
+#[tokio::main(core_threads = 2)]
 async fn main() -> Result<(), Box<dyn Error>> {
     let config: Config = argh::from_env();
     let count = config.count;
