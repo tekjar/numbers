@@ -27,19 +27,14 @@ struct Config {
 
 async fn server() -> Result<(), io::Error> {
     let listener = Async::<TcpListener>::bind("127.0.0.1:8080").unwrap();
-
     let (socket, _) = listener.accept().await?;
     let mut frames = Framed::new(socket, MqttCodec);
     while let Some(packet) = frames.next().await {
         match packet.unwrap() {
             Packet::Publish(publish) => {
-                let ack = Packet::PubAck(PubAck::new(publish.pkid));
-                frames.send(ack).await.unwrap();
-                dbg!(publish.payload.len());
                 let publish = Packet::Publish(publish);
                 frames.send(publish).await.unwrap();
                 frames.flush().await.unwrap();
-                dbg!();
             }
             Packet::PubAck(_puback) => continue
         };
@@ -81,13 +76,13 @@ async fn client(payload_size: usize, max_count: usize) -> Result<(), io::Error> 
 
                 match frame.unwrap() {
                     Packet::Publish(_publish) => {
-
-                    },
-                    Packet::PubAck(_ack) => {
                         count += 1;
                         if count >= max_count {
                             break;
                         }
+                    },
+                    Packet::PubAck(_ack) => {
+
                     }
                 }
             }

@@ -96,7 +96,7 @@ impl PubAck {
 #[derive(Debug, Clone)]
 pub enum Packet {
     Publish(Publish),
-    PubAck(PubAck)
+    // PubAck(PubAck)
 }
 
 pub fn mqtt_write(packet: Packet, payload: &mut BytesMut) {
@@ -122,12 +122,12 @@ pub fn mqtt_write(packet: Packet, payload: &mut BytesMut) {
 
             payload.extend_from_slice(&packet.payload[..]);
         }
-        Packet::PubAck(packet) => {
-            payload.reserve(4);
-            payload.put_u8(0x40);
-            payload.put_u8(0x02);
-            payload.put_u16(packet.pkid);
-        }
+        // Packet::PubAck(packet) => {
+        //     payload.reserve(4);
+        //     payload.put_u8(0x40);
+        //     payload.put_u8(0x02);
+        //     payload.put_u16(packet.pkid);
+        // }
     }
 
 }
@@ -157,7 +157,7 @@ pub fn mqtt_read(stream: &mut BytesMut) -> Result<Packet, Error> {
     let s = stream.split_to(len);
     Ok(match control_type {
         3 => Packet::Publish(Publish::assemble(fixed_header, s.freeze())),
-        4 => Packet::PubAck(PubAck::assemble(fixed_header, s.freeze())),
+        // 4 => Packet::PubAck(PubAck::assemble(fixed_header, s.freeze())),
         typ => panic!("Invalid packet type {}", typ)
     })
 }
@@ -197,7 +197,7 @@ pub fn parse_fixed_header(stream: &[u8]) -> Result<(u8, usize), Error> {
     }
 
     if !done {
-        dbg!("Need more bytes");
+        // dbg!("Need more bytes");
         return Err(Error::UnexpectedEof)
     }
 
