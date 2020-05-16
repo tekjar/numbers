@@ -13,17 +13,17 @@ mod test {
 
     #[bench]
     fn spsc_1000000_smol(b: &mut Bencher) {
-        let (tx, rx) = piper::chan(1000);
-        thread::spawn(move || {
-            smol::block_on(async {
-                let tx = tx;
-                for i in 0..1_000_000u32 {
-                    tx.send(i).await;
-                }
-            });
-        });
-
         b.iter(move || {
+            let (tx, rx) = piper::chan(1000);
+            thread::spawn(move || {
+                smol::block_on(async {
+                    let tx = tx;
+                    for i in 0..1_000_000u32 {
+                        tx.send(i).await;
+                    }
+                });
+            });
+
             smol::run(async {
                 for _i in 0..1_000_000u32 {
                     rx.recv().await;
@@ -34,17 +34,17 @@ mod test {
 
     #[bench]
     fn spsc_1000000_tokio(b: &mut Bencher) {
-        let (tx, mut rx) = tokio::sync::mpsc::channel(1000);
-        thread::spawn(move || {
-            smol::block_on(async {
-                let mut tx = tx;
-                for i in 0..1_000_000u32 {
-                    tx.send(i).await.unwrap();
-                }
-            });
-        });
-
         b.iter(move || {
+            let (tx, mut rx) = tokio::sync::mpsc::channel(1000);
+            thread::spawn(move || {
+                smol::block_on(async {
+                    let mut tx = tx;
+                    for i in 0..1_000_000u32 {
+                        tx.send(i).await.unwrap();
+                    }
+                });
+            });
+
             smol::run(async {
                 for _i in 0..1_000_000u32 {
                     let _ = rx.recv().await;
