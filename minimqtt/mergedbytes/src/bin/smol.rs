@@ -18,10 +18,10 @@ use mergedbytes::codec::futures::MqttCodec;
 /// Reach new heights.
 struct Config {
     /// size of payload
-    #[argh(option, short = 'p', default = "1024")]
+    #[argh(option, short = 'p', default = "16")]
     payload_size: usize,
     /// number of messages
-    #[argh(option, short = 'n', default = "10*1024*1024")]
+    #[argh(option, short = 'n', default = "1_000_000")]
     count: usize,
 }
 
@@ -32,11 +32,12 @@ async fn server() -> Result<(), io::Error> {
     while let Some(packet) = frames.next().await {
         match packet.unwrap() {
             Packet::Publish(publish) => {
-                let publish = Packet::Publish(publish);
-                frames.send(publish).await.unwrap();
+                let ack = Packet::PubAck(PubAck {pkid: publish.pkid });
+                // let publish = Packet::Publish(publish);
+                frames.send(ack).await.unwrap();
                 frames.flush().await.unwrap();
             }
-            Packet::PubAck(_puback) => continue
+            Packet::PubAck(_puback) =>  {}
         };
     }
 
@@ -59,7 +60,6 @@ async fn client(payload_size: usize, max_count: usize) -> Result<(), io::Error> 
                     Some(packet) => packet,
                     None => {
                         done = true;
-                        dbg!("done with the stream");
                         continue
                     }
                 };
@@ -69,20 +69,18 @@ async fn client(payload_size: usize, max_count: usize) -> Result<(), io::Error> 
                 let frame = match frame {
                     Some(f) => f,
                     None => {
-                        dbg!("done with network");
                         break
                     }
                 };
 
                 match frame.unwrap() {
                     Packet::Publish(_publish) => {
+                    },
+                    Packet::PubAck(_ack) => {
                         count += 1;
                         if count >= max_count {
                             break;
                         }
-                    },
-                    Packet::PubAck(_ack) => {
-
                     }
                 }
             }
@@ -90,11 +88,9 @@ async fn client(payload_size: usize, max_count: usize) -> Result<(), io::Error> 
     }
 
     let elapsed = start.elapsed();
-    let throughput = (payload_size * count as usize) as u128 / elapsed.as_millis();
+    let throughput = (count as usize) as u128 / elapsed.as_millis();
     let throughput_secs = throughput * 1000;
-    let throughput_secs_mb = throughput_secs / 1024 / 1024;
-    println!("throughput = {} MB/s", throughput_secs_mb);
-
+    println!("Total = {}, paylod(bytes) = {}, throughput = {} messages/s", count, payload_size, throughput_secs);
     Ok(())
 }
 

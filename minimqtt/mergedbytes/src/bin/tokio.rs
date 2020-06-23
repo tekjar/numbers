@@ -17,10 +17,10 @@ use tokio::net::{TcpStream, TcpListener};
 /// Reach new heights.
 struct Config {
     /// size of payload
-    #[argh(option, short = 'p', default = "1024")]
+    #[argh(option, short = 'p', default = "16")]
     payload_size: usize,
     /// number of messages
-    #[argh(option, short = 'n', default = "5*1024*1024")]
+    #[argh(option, short = 'n', default = "10_000_000")]
     count: usize,
 }
 
@@ -34,14 +34,13 @@ async fn server() -> Result<(), io::Error> {
             while let Some(packet) = frames.next().await {
                 match packet.unwrap() {
                     Packet::Publish(publish) => {
-                        // dbg!(publish.pkid);
-                        let ack = Packet::PubAck(PubAck::new(publish.pkid));
+                        let ack = Packet::PubAck(PubAck {pkid: publish.pkid });
+                        // let publish = Packet::Publish(publish);
                         frames.send(ack).await.unwrap();
-                    },
-                    Packet::PubAck(_puback) => continue
+                        frames.flush().await.unwrap();
+                    }
+                    Packet::PubAck(_puback) =>  {}
                 };
-                // let publish = Packet::Publish(publish);
-                // frames.send(publish).await.unwrap();
             }
         }).await.unwrap();
     }
@@ -54,21 +53,15 @@ async fn client(payload_size: usize, max_count: usize) -> Result<(), io::Error> 
 
     let mut count = 0;
     let start = Instant::now();
-    let mut send_count = 0;
     loop {
         select! {
             Some(packet) = stream.next() => {
-                send_count += 1;
-                if let Packet::Publish(publish) = &packet {
-                    // dbg!(send_count);
-                }
                 frames.send(packet).await.unwrap();
             }
             Some(o) = frames.next() => match o.unwrap() {
                 Packet::Publish(_publish) => (),
-                Packet::PubAck(ack) => {
+                Packet::PubAck(_ack) => {
                     count += 1;
-                    // dbg!(count);
                     if count >= max_count {
                         break;
                     }
@@ -82,11 +75,9 @@ async fn client(payload_size: usize, max_count: usize) -> Result<(), io::Error> 
     }
 
     let elapsed = start.elapsed();
-    let throughput = (payload_size * count as usize) as u128 / elapsed.as_millis();
+    let throughput = (count as usize) as u128 / elapsed.as_millis();
     let throughput_secs = throughput * 1000;
-    let throughput_secs_mb = throughput_secs / 1024 / 1024;
-    println!("throughput = {} MB/s", throughput_secs_mb);
-
+    println!("Total = {}, paylod(bytes) = {}, throughput = {} messages/s", count, payload_size, throughput_secs);
     Ok(())
 }
 
