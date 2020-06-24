@@ -35,9 +35,7 @@ async fn server() -> Result<(), io::Error> {
                 match packet.unwrap() {
                     Packet::Publish(publish) => {
                         let ack = Packet::PubAck(PubAck {pkid: publish.pkid });
-                        // let publish = Packet::Publish(publish);
                         frames.send(ack).await.unwrap();
-                        frames.flush().await.unwrap();
                     }
                     Packet::PubAck(_puback) =>  {}
                 };
@@ -51,18 +49,22 @@ async fn client(payload_size: usize, max_count: usize) -> Result<(), io::Error> 
     let mut frames = Framed::new(socket, MqttCodec);
     let mut stream = stream::iter(packets(payload_size, max_count));
 
-    let mut count = 0;
+    let mut acked = 0;
+    let mut sent = 0;
     let start = Instant::now();
     loop {
         select! {
-            Some(packet) = stream.next() => {
+            // sent - acked guard prevents bounded queue deadlock ( assuming 100 packets doesn't
+            // cause framed.send() to block )
+            Some(packet) = stream.next(), if sent - acked < 100 => {
                 frames.send(packet).await.unwrap();
+                sent += 1;
             }
             Some(o) = frames.next() => match o.unwrap() {
                 Packet::Publish(_publish) => (),
                 Packet::PubAck(_ack) => {
-                    count += 1;
-                    if count >= max_count {
+                    acked += 1;
+                    if acked >= max_count {
                         break;
                     }
                 },
@@ -75,9 +77,9 @@ async fn client(payload_size: usize, max_count: usize) -> Result<(), io::Error> 
     }
 
     let elapsed = start.elapsed();
-    let throughput = (count as usize) as u128 / elapsed.as_millis();
+    let throughput = (acked as usize) as u128 / elapsed.as_millis();
     let throughput_secs = throughput * 1000;
-    println!("Total = {}, paylod(bytes) = {}, throughput = {} messages/s", count, payload_size, throughput_secs);
+    println!("Total = {}, paylod(bytes) = {}, throughput = {} messages/s", acked, payload_size, throughput_secs);
     Ok(())
 }
 
