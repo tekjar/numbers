@@ -23,6 +23,9 @@ struct Config {
     /// number of messages
     #[argh(option, short = 'n', default = "10_000_000")]
     count: usize,
+    /// number of messages
+    #[argh(option, short = 'f', default = "100")]
+    flow_control_size: usize,
 }
 
 async fn server() -> Result<(), io::Error> {
@@ -43,17 +46,17 @@ async fn server() -> Result<(), io::Error> {
     Ok(())
 }
 
-async fn client(payload_size: usize, max_count: usize) -> Result<(), io::Error> {
+async fn client(config: Config) -> Result<(), io::Error> {
     let socket = Async::<TcpStream>::connect("127.0.0.1:8080").await?;
     let mut frames = Framed::new(socket, MqttCodec);
-    let mut stream = stream::iter(packets(payload_size, max_count));
+    let mut stream = stream::iter(packets(config.payload_size, config.count));
 
     let mut acked = 0;
     let mut sent = 0;
     let start = Instant::now();
     loop {
         select! {
-            Some(packet) = stream.next(), if sent - acked < 100 => {
+            Some(packet) = stream.next(), if sent - acked < config.flow_control_size => {
                 frames.send(packet).await.unwrap();
                 sent += 1;
             }
@@ -63,7 +66,7 @@ async fn client(payload_size: usize, max_count: usize) -> Result<(), io::Error> 
                     },
                     Packet::PubAck(_ack) => {
                         acked += 1;
-                        if acked >= max_count {
+                        if acked >= config.count {
                             break;
                         }
                     }
@@ -75,14 +78,12 @@ async fn client(payload_size: usize, max_count: usize) -> Result<(), io::Error> 
     let elapsed = start.elapsed();
     let throughput = (acked as usize) as u128 / elapsed.as_millis();
     let throughput_secs = throughput * 1000;
-    println!("Total = {}, paylod(bytes) = {}, throughput = {} messages/s", acked, payload_size, throughput_secs);
+    println!("Total = {}, Payload size = {} bytes, Flow control window len = {}, Throughput = {} Messages/s", acked, config.payload_size, config.flow_control_size, throughput_secs);
     Ok(())
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
     let config: Config = argh::from_env();
-    let count = config.count;
-    let payload_size = config.payload_size;
 
     // Create a thread pool.
     for _ in 0..4 {
@@ -91,7 +92,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     smol::block_on(async {
         let _server = Task::spawn(server());
-        client(payload_size, count).await.unwrap();
+        client(config).await.unwrap();
     });
 
     Ok(())
