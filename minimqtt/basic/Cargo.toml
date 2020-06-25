@@ -25,6 +25,11 @@ smol = "0.1"
 prost = "0.6"
 pprof = { version = "0.3", features = ["flamegraph", "protobuf"] }
 pretty_assertions = "0.6"
+criterion = "0.3"
+
+[[bench]]
+name = "benchmark"
+harness = false
 
 #[profile.release]
 #debug = true

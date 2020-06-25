@@ -1,5 +1,3 @@
-#![cfg_attr(nightly, feature(test))]
-
 use bytes::{Bytes, Buf, BytesMut, BufMut};
 use thiserror::Error;
 use std::io;
@@ -250,7 +248,7 @@ pub(crate) fn write_remaining_length(stream: &mut BytesMut, len: usize) {
     }
 }
 
-
+/*
 #[cfg(test)]
 mod test {
     extern crate test;
@@ -258,14 +256,14 @@ mod test {
     use bytes::{Bytes, BytesMut};
     use crate::{Publish, mqtt_write, Packet, mqtt_read};
 
-    // #[bench]
+    #[bench]
     fn encode_packets(b: &mut Bencher) {
         let mut payload = BytesMut::new();
         let publish = Publish {
             dup: false,
             qos: 1,
             retain: false,
-            topic: "a/b".to_owned(),
+            topic: "this/is/a/very/big/mqtt/topic/for/testing/perf".to_owned(),
             pkid: 10,
             payload: Bytes::from(vec![1; 1024]),
         };
@@ -285,7 +283,7 @@ mod test {
             dup: false,
             qos: 1,
             retain: false,
-            topic: "a/b".to_owned(),
+            topic: "this/is/a/very/big/mqtt/topic/for/testing/perf".to_owned(),
             pkid: 10,
             payload: Bytes::from(vec![1; 1024]),
         };
@@ -301,3 +299,4 @@ mod test {
         b.bytes = 1024 * 1000;
     }
 }
+*/
