@@ -83,5 +83,5 @@ labels, out = collect('throughput.txt')
 benchmark = Benchmark(labels)
 for target, throughputs in out.items():
     benchmark.plot(target, throughputs)
-benchmark.show()
 benchmark.save('throughput.png')
+benchmark.show()
