@@ -11,8 +11,8 @@ use futures_util::{SinkExt, StreamExt};
 use smol::{self, Async, Task};
 use std::{io, thread};
 use tokio::select;
-use mergedbytes::{Publish, Packet, PubAck};
-use mergedbytes::codec::futures::MqttCodec;
+use basic::{Publish, Packet, PubAck};
+use basic::codec::futures::MqttCodec;
 
 #[derive(FromArgs)]
 /// Reach new heights.
