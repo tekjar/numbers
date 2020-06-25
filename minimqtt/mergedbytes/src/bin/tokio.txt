@@ -1,1 +1,0 @@
-Total = 10000000, Payload size = 16 bytes, Flow control window len = 500, Throughput = 299000 Messages/s

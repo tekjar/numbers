@@ -82,7 +82,7 @@ async fn client(config: Config) -> Result<(), io::Error> {
     let elapsed = start.elapsed();
     let throughput = (acked as usize) as u128 / elapsed.as_millis();
     let throughput_secs = throughput * 1000;
-    println!("Total = {}, Payload size = {} bytes, Flow control window len = {}, Throughput = {} Messages/s", acked, config.payload_size, config.flow_control_size, throughput_secs);
+    println!("Id = tokio, Total = {}, Payload size (bytes) = {}, Flow control window len = {}, Throughput (messages/sec) = {}", acked, config.payload_size, config.flow_control_size, throughput_secs);
     Ok(())
 }
 
