@@ -1,6 +1,6 @@
 use bytes::BytesMut;
 use tokio_util::codec::{Decoder, Encoder};
-use crate::{Error, mqtt_read, mqtt_write, Packet};
+use crate::{Error, mqtt_read, Packet};
 
 pub struct MqttCodec;
 
@@ -28,8 +28,9 @@ impl Decoder for MqttCodec {
 impl Encoder<Packet> for MqttCodec {
     type Error = crate::Error;
 
-    fn encode(&mut self, packet: Packet, buf: &mut BytesMut) -> Result<(), crate::Error> {
-        mqtt_write(packet, buf);
-        Ok(())
+    fn encode(&mut self, _packet: Packet, _buf: &mut BytesMut) -> Result<(), crate::Error> {
+        todo!();
+        // mqtt_write(packet, buf);
+        // Ok(())
     }
 }

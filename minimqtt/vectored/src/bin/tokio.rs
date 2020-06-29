@@ -4,14 +4,17 @@ use std::error::Error;
 use std::time::{Instant, Duration};
 
 use futures_util::stream;
-use futures_util::{SinkExt, StreamExt};
+use tokio::io::AsyncWriteExt;
+use tokio::stream::StreamExt;
 use std::io;
 use tokio::task;
 use tokio::select;
-use vectored::{Publish, Packet, PubAck};
+use vectored::{mqtt_write, Publish, Packet, PubAck};
 use vectored::codec::tokio::MqttCodec;
 use tokio_util::codec::Framed;
 use tokio::net::{TcpStream, TcpListener};
+use chunked_bytes::ChunkedBytes;
+use bytes::buf::Buf;
 
 #[derive(FromArgs)]
 /// Reach new heights.
@@ -33,12 +36,15 @@ async fn server() -> Result<(), io::Error> {
     loop {
         let (socket, _) = listener.accept().await?;
         task::spawn(async move {
+            let mut out = ChunkedBytes::new();
             let mut frames = Framed::new(socket, MqttCodec);
             while let Some(packet) = frames.next().await {
                 match packet.unwrap() {
                     Packet::Publish(publish) => {
                         let ack = Packet::PubAck(PubAck {pkid: publish.pkid });
-                        frames.send(ack).await.unwrap();
+                        mqtt_write(ack, &mut out);
+                        frames.get_mut().write_buf(&mut out).await.unwrap();
+                        out.advance(out.bytes().len());
                     }
                     Packet::PubAck(_puback) =>  {}
                 };
@@ -55,13 +61,18 @@ async fn client(config: Config) -> Result<(), io::Error> {
     let mut acked = 0;
     let mut sent = 0;
     let start = Instant::now();
+    let mut out = ChunkedBytes::new();
     loop {
         select! {
             // sent - acked guard prevents bounded queue deadlock ( assuming 100 packets doesn't
             // cause framed.send() to block )
             Some(packet) = stream.next(), if sent - acked < config.flow_control_size => {
-                frames.send(packet).await.unwrap();
+                mqtt_write(packet, &mut out);
                 sent += 1;
+                if sent % 10 == 0 {
+                    frames.get_mut().write_buf(&mut out).await.unwrap();
+                    out.advance(out.bytes().len());
+                }
             }
             Some(o) = frames.next() => match o.unwrap() {
                 Packet::Publish(_publish) => (),
