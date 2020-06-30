@@ -8,11 +8,14 @@ use futures_codec::Framed;
 use futures_util::future;
 use futures_util::stream;
 use futures_util::{SinkExt, StreamExt};
+use futures_util::io::AsyncWriteExt;
 use smol::{self, Async, Task};
 use std::{io, thread};
 use tokio::select;
-use vectored::{Publish, Packet, PubAck};
+use vectored::{mqtt_write, Publish, Packet, PubAck};
 use vectored::codec::futures::MqttCodec;
+use bytes::BytesMut;
+use bytes::buf::Buf;
 
 #[derive(FromArgs)]
 /// Reach new heights.
@@ -32,11 +35,14 @@ async fn server() -> Result<(), io::Error> {
     let listener = Async::<TcpListener>::bind("127.0.0.1:8080").unwrap();
     let (socket, _) = listener.accept().await?;
     let mut frames = Framed::new(socket, MqttCodec);
+    let mut out = BytesMut::new();
     while let Some(packet) = frames.next().await {
         match packet.unwrap() {
             Packet::Publish(publish) => {
                 let ack = Packet::PubAck(PubAck {pkid: publish.pkid });
-                frames.send(ack).await.unwrap();
+                mqtt_write(ack, &mut out);
+                (&mut frames).write_all(&mut out).await.unwrap();
+                out.advance(out.len());
             }
             Packet::PubAck(_puback) =>  {}
         };
@@ -54,11 +60,17 @@ async fn client(config: Config) -> Result<(), io::Error> {
     let mut acked = 0;
     let mut sent = 0;
     let start = Instant::now();
+    let mut out = BytesMut::new();
     loop {
         select! {
             Some(packet) = stream.next(), if sent - acked < config.flow_control_size => {
-                frames.send(packet).await.unwrap();
+                // frames.get_mut()send(packet).await.unwrap();
+                let mut payload = mqtt_write(packet, &mut out).unwrap();
                 sent += 1;
+                (&mut frames).write_all(&mut out).await.unwrap();
+                out.advance(out.len());
+                (&mut frames).write_all(&mut payload).await.unwrap();
+
             }
             Some(frame) = frames.next() =>  {
                 match frame.unwrap() {

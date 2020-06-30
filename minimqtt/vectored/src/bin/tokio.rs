@@ -13,8 +13,8 @@ use vectored::{mqtt_write, Publish, Packet, PubAck};
 use vectored::codec::tokio::MqttCodec;
 use tokio_util::codec::Framed;
 use tokio::net::{TcpStream, TcpListener};
-use chunked_bytes::ChunkedBytes;
 use bytes::buf::Buf;
+use bytes::BytesMut;
 
 #[derive(FromArgs)]
 /// Reach new heights.
@@ -36,7 +36,7 @@ async fn server() -> Result<(), io::Error> {
     loop {
         let (socket, _) = listener.accept().await?;
         task::spawn(async move {
-            let mut out = ChunkedBytes::new();
+            let mut out = BytesMut::new();
             let mut frames = Framed::new(socket, MqttCodec);
             while let Some(packet) = frames.next().await {
                 match packet.unwrap() {
@@ -44,7 +44,6 @@ async fn server() -> Result<(), io::Error> {
                         let ack = Packet::PubAck(PubAck {pkid: publish.pkid });
                         mqtt_write(ack, &mut out);
                         frames.get_mut().write_buf(&mut out).await.unwrap();
-                        out.advance(out.bytes().len());
                     }
                     Packet::PubAck(_puback) =>  {}
                 };
@@ -61,17 +60,17 @@ async fn client(config: Config) -> Result<(), io::Error> {
     let mut acked = 0;
     let mut sent = 0;
     let start = Instant::now();
-    let mut out = ChunkedBytes::new();
+    let mut out = BytesMut::new();
     loop {
         select! {
             // sent - acked guard prevents bounded queue deadlock ( assuming 100 packets doesn't
             // cause framed.send() to block )
             Some(packet) = stream.next(), if sent - acked < config.flow_control_size => {
-                mqtt_write(packet, &mut out);
+                let mut payload = mqtt_write(packet, &mut out);
                 sent += 1;
-                if sent % 10 == 0 {
-                    frames.get_mut().write_buf(&mut out).await.unwrap();
-                    out.advance(out.bytes().len());
+                frames.get_mut().write_buf(&mut out).await.unwrap();
+                if let Some(p) = &mut payload {
+                    frames.get_mut().write_buf(p).await.unwrap();
                 }
             }
             Some(o) = frames.next() => match o.unwrap() {

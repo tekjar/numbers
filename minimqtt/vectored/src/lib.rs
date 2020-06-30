@@ -1,7 +1,6 @@
 use bytes::{Bytes, Buf, BytesMut, BufMut};
 use thiserror::Error;
 use std::io;
-use chunked_bytes::ChunkedBytes;
 
 pub mod codec;
 
@@ -98,7 +97,7 @@ pub enum Packet {
     PubAck(PubAck)
 }
 
-pub fn mqtt_write(packet: Packet, payload: &mut ChunkedBytes) {
+pub fn mqtt_write(packet: Packet, payload: &mut BytesMut) -> Option<Bytes> {
     match packet {
         Packet::Publish(packet) => {
             // payload.reserve(packet.topic.len() + packet.payload.len() + 10);
@@ -119,13 +118,14 @@ pub fn mqtt_write(packet: Packet, payload: &mut ChunkedBytes) {
                 payload.put_u16(pkid);
             }
 
-            payload.put_bytes(packet.payload);
+            Some(packet.payload)
         }
         Packet::PubAck(packet) => {
             // payload.reserve(4);
             payload.put_u8(0x40);
             payload.put_u8(0x02);
             payload.put_u16(packet.pkid);
+            None
         }
     }
 
@@ -224,12 +224,12 @@ pub fn read_mqtt_string(stream: &mut Bytes) -> String {
     }
 }
 
-pub(crate) fn write_mqtt_string(stream: &mut ChunkedBytes, string: &str) {
+pub(crate) fn write_mqtt_string(stream: &mut BytesMut, string: &str) {
     stream.put_u16(string.len() as u16);
     stream.put(string.as_bytes());
 }
 
-pub(crate) fn write_remaining_length(stream: &mut ChunkedBytes, len: usize) {
+pub(crate) fn write_remaining_length(stream: &mut BytesMut, len: usize) {
     if len > 268_435_455 {
         panic!("Payload too long")
     }
