@@ -135,19 +135,19 @@ pub fn mqtt_read(stream: &mut BytesMut) -> Result<Packet, Error> {
     let header_len = header_len(remaining_len);
     let len = header_len + remaining_len;
 
+    // If the current call fails due to insufficient bytes in the stream, after calculating
+    // remaining length, we extend the stream
+    if stream.len() < len {
+        return Err(Error::Insufficient(len))
+    }
+    // println!("id = {}, want = {}, have = {}", control_type, len, stream.len());
+
     let fixed_header = FixedHeader {
         byte1,
         header_len,
         remaining_len
     };
     let control_type = byte1 >> 4;
-    // println!("id = {}, want = {}, have = {}", control_type, len, stream.len());
-
-    // If the current call fails due to insufficient bytes in the stream, after calculating
-    // remaining length, we extend the stream
-    if stream.len() < len {
-        return Err(Error::Insufficient(len))
-    }
 
     let s = stream.split_to(len);
     Ok(match control_type {
