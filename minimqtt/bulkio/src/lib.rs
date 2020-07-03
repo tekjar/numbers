@@ -2,12 +2,10 @@ use bytes::{Bytes, Buf, BytesMut, BufMut};
 use thiserror::Error;
 use std::io;
 
-pub mod codec;
-
 #[derive(Error, Debug)]
 pub enum Error {
     #[error("Not enough bytes in the io buffer")]
-    UnexpectedEof,
+    Insufficient(usize),
     #[error("io failed `{0}`")]
     Io(#[from] io::Error)
 }
@@ -148,8 +146,7 @@ pub fn mqtt_read(stream: &mut BytesMut) -> Result<Packet, Error> {
     // If the current call fails due to insufficient bytes in the stream, after calculating
     // remaining length, we extend the stream
     if stream.len() < len {
-        stream.reserve(remaining_len + 2);
-        return Err(Error::UnexpectedEof)
+        return Err(Error::Insufficient(len))
     }
 
     let s = stream.split_to(len);
@@ -167,11 +164,9 @@ struct FixedHeader {
 }
 
 pub fn parse_fixed_header(stream: &[u8]) -> Result<(u8, usize), Error> {
-    // let s = stream.clone();
-    // println!("Parsing fixed. Stream size = {}", stream.len());
-    // println!("{:0x?}", s);
-    if stream.is_empty() {
-        return Err(Error::UnexpectedEof)
+    let stream_len = stream.len();
+    if stream_len < 2 {
+        return Err(Error::Insufficient(2))
     }
 
     let mut mult: usize = 1;
@@ -195,8 +190,7 @@ pub fn parse_fixed_header(stream: &[u8]) -> Result<(u8, usize), Error> {
     }
 
     if !done {
-        // dbg!("Need more bytes");
-        return Err(Error::UnexpectedEof)
+        return Err(Error::Insufficient(stream_len + 1))
     }
 
     Ok((byte1, len))
