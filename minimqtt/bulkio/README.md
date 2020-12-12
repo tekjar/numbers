@@ -1,4 +1,0 @@
-RESULTS
------------
-
-![throughput](throughput.png)

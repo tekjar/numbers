@@ -1,2 +1,0 @@
-Id = tokio, Total = 1000000, Payload size (bytes) = 16, Flow control window len = 100, Throughput (messages/sec) = 45000
-Id = tokio, Total = 1000000, Payload size (bytes) = 16, Flow control window len = 500, Throughput (messages/sec) = 80000

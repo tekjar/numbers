@@ -1,6 +1,0 @@
-Id = smol, Total = 10000000, Payload size (bytes) = 16, Flow control window len = 100, Throughput (messages/sec) = 1310000
-Id = tokio, Total = 10000000, Payload size (bytes) = 16, Flow control window len = 100, Throughput (messages/sec) = 1199000
-Id = smol, Total = 10000000, Payload size (bytes) = 16, Flow control window len = 500, Throughput (messages/sec) = 1632000
-Id = tokio, Total = 10000000, Payload size (bytes) = 16, Flow control window len = 500, Throughput (messages/sec) = 1417000
-Id = smol, Total = 10000000, Payload size (bytes) = 16, Flow control window len = 1000, Throughput (messages/sec) = 1647000
-Id = tokio, Total = 10000000, Payload size (bytes) = 16, Flow control window len = 1000, Throughput (messages/sec) = 1418000
